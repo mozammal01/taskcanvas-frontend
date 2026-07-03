@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/store/useAuthStore";
+import { useAuthStore, useAuthHasHydrated } from "@/store/useAuthStore";
 import { Navbar } from "@/components/layout/Navbar";
 
 export default function ProtectedLayout({
@@ -12,7 +12,7 @@ export default function ProtectedLayout({
 }) {
   const router = useRouter();
   const tokens = useAuthStore((state) => state.tokens);
-  const hasHydrated = useAuthStore((state) => state.hasHydrated);
+  const hasHydrated = useAuthHasHydrated();
 
   useEffect(() => {
     if (hasHydrated && !tokens) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -75,6 +75,8 @@ export function TaskModal({
   onSubmit,
   onDelete,
 }: TaskModalProps) {
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
@@ -88,23 +90,30 @@ export function TaskModal({
 
   useEffect(() => {
     if (open) {
+      setSubmitError(null);
+      setDeleteError(null);
       reset(toFormValues(task, defaultStatus, defaultDueDate));
     }
   }, [open, task, defaultStatus, defaultDueDate, reset]);
 
   const submit = async (values: TaskFormValues) => {
-    await onSubmit({
-      title: values.title,
-      description: values.description,
-      priority: values.priority,
-      status: values.status,
-      dueDate: values.dueDate,
-      tags: values.tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-    });
-    onOpenChange(false);
+    setSubmitError(null);
+    try {
+      await onSubmit({
+        title: values.title,
+        description: values.description,
+        priority: values.priority,
+        status: values.status,
+        dueDate: values.dueDate,
+        tags: values.tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      });
+      onOpenChange(false);
+    } catch {
+      setSubmitError("Could not save this task. Please try again.");
+    }
   };
 
   return (
@@ -137,7 +146,11 @@ export function TaskModal({
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger className="w-full">
-                      <SelectValue />
+                      <SelectValue>
+                        {(value: string) =>
+                          TASK_PRIORITIES.find((p) => p.id === value)?.label
+                        }
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {TASK_PRIORITIES.map((p) => (
@@ -159,7 +172,11 @@ export function TaskModal({
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger className="w-full">
-                      <SelectValue />
+                      <SelectValue>
+                        {(value: string) =>
+                          TASK_STATUSES.find((s) => s.id === value)?.label
+                        }
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {TASK_STATUSES.map((s) => (
@@ -192,14 +209,23 @@ export function TaskModal({
             <Input id="tags" placeholder="design, urgent" {...register("tags")} />
           </div>
 
+          {(submitError || deleteError) && (
+            <p className="text-sm text-destructive">{submitError ?? deleteError}</p>
+          )}
+
           <DialogFooter className="items-center sm:justify-between">
             {task && onDelete ? (
               <Button
                 type="button"
                 variant="destructive"
                 onClick={async () => {
-                  await onDelete(task.id);
-                  onOpenChange(false);
+                  setDeleteError(null);
+                  try {
+                    await onDelete(task.id);
+                    onOpenChange(false);
+                  } catch {
+                    setDeleteError("Could not delete this task. Please try again.");
+                  }
                 }}
               >
                 Delete

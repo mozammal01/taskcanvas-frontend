@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import * as authApi from "@/lib/api/auth";
@@ -8,7 +9,6 @@ interface AuthState {
   tokens: AuthTokens | null;
   isLoading: boolean;
   error: string | null;
-  hasHydrated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -20,7 +20,6 @@ export const useAuthStore = create<AuthState>()(
       tokens: null,
       isLoading: false,
       error: null,
-      hasHydrated: false,
       login: async (email, password) => {
         set({ isLoading: true, error: null });
         try {
@@ -36,9 +35,23 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "taskcanvas-auth",
       partialize: (state) => ({ user: state.user, tokens: state.tokens }),
-      onRehydrateStorage: () => () => {
-        useAuthStore.setState({ hasHydrated: true });
-      },
     }
   )
 );
+
+/**
+ * True once the persisted auth state has been read from localStorage.
+ * `useAuthStore.persist` only exists client-side (accessing localStorage
+ * during SSR disables the persist middleware for that render), so it must
+ * only ever be touched inside an effect, never during render.
+ */
+export function useAuthHasHydrated() {
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  useEffect(() => {
+    setHasHydrated(useAuthStore.persist.hasHydrated());
+    return useAuthStore.persist.onFinishHydration(() => setHasHydrated(true));
+  }, []);
+
+  return hasHydrated;
+}
