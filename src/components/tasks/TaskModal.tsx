@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -81,20 +81,11 @@ export function TaskModal({
     register,
     handleSubmit,
     control,
-    reset,
     formState: { errors, isSubmitting },
   } = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
     defaultValues: toFormValues(task, defaultStatus, defaultDueDate),
   });
-
-  useEffect(() => {
-    if (open) {
-      setSubmitError(null);
-      setDeleteError(null);
-      reset(toFormValues(task, defaultStatus, defaultDueDate));
-    }
-  }, [open, task, defaultStatus, defaultDueDate, reset]);
 
   const submit = async (values: TaskFormValues) => {
     setSubmitError(null);

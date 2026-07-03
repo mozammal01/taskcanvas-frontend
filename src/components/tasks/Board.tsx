@@ -25,6 +25,7 @@ export function Board() {
     moveTask,
   } = useTaskStore();
   const [modalState, setModalState] = useState<ModalState>(null);
+  const [modalKey, setModalKey] = useState(0);
 
   useEffect(() => {
     fetchTasks();
@@ -53,8 +54,14 @@ export function Board() {
               status={id}
               label={label}
               tasks={tasks.filter((t) => t.status === id)}
-              onAddTask={(status) => setModalState({ mode: "create", status })}
-              onEditTask={(task) => setModalState({ mode: "edit", task })}
+              onAddTask={(status) => {
+                setModalKey((k) => k + 1);
+                setModalState({ mode: "create", status });
+              }}
+              onEditTask={(task) => {
+                setModalKey((k) => k + 1);
+                setModalState({ mode: "edit", task });
+              }}
             />
           ))}
         </div>
@@ -64,6 +71,7 @@ export function Board() {
       )}
 
       <TaskModal
+        key={modalKey}
         open={modalState !== null}
         onOpenChange={(open) => !open && setModalState(null)}
         task={modalState?.mode === "edit" ? modalState.task : undefined}

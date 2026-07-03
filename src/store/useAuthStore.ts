@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import * as authApi from "@/lib/api/auth";
@@ -42,16 +42,13 @@ export const useAuthStore = create<AuthState>()(
 /**
  * True once the persisted auth state has been read from localStorage.
  * `useAuthStore.persist` only exists client-side (accessing localStorage
- * during SSR disables the persist middleware for that render), so it must
- * only ever be touched inside an effect, never during render.
+ * during SSR disables the persist middleware for that render), so the
+ * server snapshot must avoid touching it and just report "not hydrated".
  */
 export function useAuthHasHydrated() {
-  const [hasHydrated, setHasHydrated] = useState(false);
-
-  useEffect(() => {
-    setHasHydrated(useAuthStore.persist.hasHydrated());
-    return useAuthStore.persist.onFinishHydration(() => setHasHydrated(true));
-  }, []);
-
-  return hasHydrated;
+  return useSyncExternalStore(
+    (onChange) => useAuthStore.persist.onFinishHydration(onChange),
+    () => useAuthStore.persist.hasHydrated(),
+    () => false
+  );
 }
