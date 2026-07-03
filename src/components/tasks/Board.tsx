@@ -1,18 +1,30 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { DndContext, type DragEndEvent } from "@dnd-kit/core";
 import { Column } from "@/components/tasks/Column";
+import { TaskModal } from "@/components/tasks/TaskModal";
 import { useTaskStore } from "@/store/useTaskStore";
 import { TASK_STATUSES, type Task, type TaskStatus } from "@/types/task";
 
-interface BoardProps {
-  onAddTask: (status: TaskStatus) => void;
-  onEditTask: (task: Task) => void;
-}
+type ModalState =
+  | { mode: "create"; status: TaskStatus }
+  | { mode: "edit"; task: Task }
+  | null;
 
-export function Board({ onAddTask, onEditTask }: BoardProps) {
-  const { tasks, isLoading, error, fetchTasks, moveTask } = useTaskStore();
+export function Board() {
+  const {
+    tasks,
+    selectedDate,
+    isLoading,
+    error,
+    fetchTasks,
+    addTask,
+    editTask,
+    removeTask,
+    moveTask,
+  } = useTaskStore();
+  const [modalState, setModalState] = useState<ModalState>(null);
 
   useEffect(() => {
     fetchTasks();
@@ -41,8 +53,8 @@ export function Board({ onAddTask, onEditTask }: BoardProps) {
               status={id}
               label={label}
               tasks={tasks.filter((t) => t.status === id)}
-              onAddTask={onAddTask}
-              onEditTask={onEditTask}
+              onAddTask={(status) => setModalState({ mode: "create", status })}
+              onEditTask={(task) => setModalState({ mode: "edit", task })}
             />
           ))}
         </div>
@@ -50,6 +62,20 @@ export function Board({ onAddTask, onEditTask }: BoardProps) {
       {isLoading && (
         <p className="text-center text-xs text-muted-foreground">Loading tasks...</p>
       )}
+
+      <TaskModal
+        open={modalState !== null}
+        onOpenChange={(open) => !open && setModalState(null)}
+        task={modalState?.mode === "edit" ? modalState.task : undefined}
+        defaultStatus={modalState?.mode === "create" ? modalState.status : undefined}
+        defaultDueDate={selectedDate}
+        onSubmit={(draft) =>
+          modalState?.mode === "edit"
+            ? editTask(modalState.task.id, draft)
+            : addTask(draft)
+        }
+        onDelete={removeTask}
+      />
     </div>
   );
 }
