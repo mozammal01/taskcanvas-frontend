@@ -1,0 +1,37 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/store/useAuthStore";
+import { Navbar } from "@/components/layout/Navbar";
+
+export default function ProtectedLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+  const tokens = useAuthStore((state) => state.tokens);
+  const hasHydrated = useAuthStore((state) => state.hasHydrated);
+
+  useEffect(() => {
+    if (hasHydrated && !tokens) {
+      router.replace("/login");
+    }
+  }, [hasHydrated, tokens, router]);
+
+  if (!hasHydrated || !tokens) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+        Loading...
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col">
+      <Navbar />
+      <main className="flex flex-1 flex-col overflow-hidden">{children}</main>
+    </div>
+  );
+}

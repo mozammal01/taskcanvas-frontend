@@ -8,6 +8,7 @@ interface AuthState {
   tokens: AuthTokens | null;
   isLoading: boolean;
   error: string | null;
+  hasHydrated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -19,6 +20,7 @@ export const useAuthStore = create<AuthState>()(
       tokens: null,
       isLoading: false,
       error: null,
+      hasHydrated: false,
       login: async (email, password) => {
         set({ isLoading: true, error: null });
         try {
@@ -34,6 +36,9 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "taskcanvas-auth",
       partialize: (state) => ({ user: state.user, tokens: state.tokens }),
+      onRehydrateStorage: () => () => {
+        useAuthStore.setState({ hasHydrated: true });
+      },
     }
   )
 );
