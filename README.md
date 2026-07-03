@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TaskCanvas — Frontend
 
-## Getting Started
+Frontend for **TaskCanvas**, a 2-in-1 app combining a date-based Kanban task
+board (`/tasks`) and a polygon image-annotation tool (`/annotate`), built for
+the "404 Project Not Found" assignment. This repo is the Next.js client; it
+talks to a separate Django REST backend over HTTP.
 
-First, run the development server:
+## Tech stack
+
+- **Next.js 16** (App Router) + **TypeScript**, `src/` directory
+- **Tailwind CSS v4** + **shadcn/ui** for styling and UI primitives
+- **Zustand** for cross-component state (auth, selected date + tasks, annotation shapes)
+- **@dnd-kit** for the Kanban drag-and-drop
+- **react-konva** for the polygon annotation canvas
+- **axios** as the API client, with an interceptor that attaches the auth token
+- **react-hook-form + zod** for form validation
+
+## Prerequisites
+
+- Node.js **v24.11.0** (developed/tested on this version; Node 20 LTS+ should
+  also work since Next.js 16 requires Node ≥ 20)
+- npm 11+ (ships with the above Node version)
+- A running instance of the [TaskCanvas backend](#) (Django), or just the
+  frontend on its own for UI work — API calls will fail gracefully without it
+
+## Getting started
 
 ```bash
+npm install
+cp .env.local.example .env.local   # then edit NEXT_PUBLIC_API_BASE_URL if needed
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). You'll be redirected to
+`/login`; once authenticated you land on `/tasks`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Description | Default |
+|---|---|---|
+| `NEXT_PUBLIC_API_BASE_URL` | Base URL of the Django REST API | `http://localhost:8000/api` |
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+  app/            # routes: /login, /(protected)/tasks, /(protected)/annotate
+  components/
+    ui/           # shadcn/ui primitives
+    shared/       # DateSelector and other cross-feature components
+    tasks/        # Board, Column, TaskCard, TaskModal
+    annotate/     # ImageUploader, ImageStrip, AnnotationCanvas, ShapeList
+  store/          # zustand stores: auth, tasks, annotation
+  lib/api/        # axios client + per-resource request functions
+  types/          # shared TypeScript types
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Challenges along the way
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **shadcn/ui's `form` registry component wouldn't install.** This project's
+  shadcn style (`base-nova`) is built on Base UI rather than Radix, and the
+  `add form` command silently no-op'd instead of erroring. Rather than fight
+  an unofficial/experimental style variant, forms (login, task modal) use
+  `react-hook-form` + `zod` directly against the plain `Input`/`Select`
+  primitives, with manual error messages under each field — simpler than the
+  wrapper abstraction anyway for a form set this small.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+_(more entries added as the rest of the app gets built)_
