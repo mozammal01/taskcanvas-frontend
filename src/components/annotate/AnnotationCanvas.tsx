@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { Stage, Layer, Image as KonvaImage, Line, Circle } from "react-konva";
 import type Konva from "konva";
 import { useAnnotationStore } from "@/store/useAnnotationStore";
-import type { ImageAsset, Point } from "@/types/annotation";
+import type { ImageAsset, Point, Shape } from "@/types/annotation";
+
+const EMPTY_SHAPES: Shape[] = [];
 
 function useHtmlImage(src: string) {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
@@ -31,7 +33,7 @@ interface AnnotationCanvasProps {
 export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
   const htmlImage = useHtmlImage(image.url);
   const shapes = useAnnotationStore(
-    (state) => state.shapesByImage[image.id] ?? []
+    (state) => state.shapesByImage[image.id] ?? EMPTY_SHAPES
   );
   const selectedShapeId = useAnnotationStore((state) => state.selectedShapeId);
   const addShape = useAnnotationStore((state) => state.addShape);
@@ -77,7 +79,7 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         Click to place polygon points, double-click to close the shape. Select
         a shape and press Delete to remove it, or Escape to cancel drawing.
       </p>
-      <div className="w-fit overflow-auto rounded-lg border bg-[repeating-conic-gradient(#e5e7eb_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] p-2">
+      <div className="w-fit overflow-auto rounded-lg border bg-[repeating-conic-gradient(#e5e7eb_0%_25%,transparent_0%_50%)] bg-size-[16px_16px] p-2">
         <Stage
           width={stageWidth}
           height={stageHeight}
