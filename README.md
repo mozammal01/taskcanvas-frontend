@@ -65,4 +65,28 @@ src/
   primitives, with manual error messages under each field — simpler than the
   wrapper abstraction anyway for a form set this small.
 
-_(more entries added as the rest of the app gets built)_
+- **The auth guard got stuck on a permanent "Loading..." screen.** I first
+  tracked hydration-from-localStorage as a field inside the persisted zustand
+  state itself, set via `onRehydrateStorage`. That callback fires *after*
+  zustand's own `set(mergedState, true)` call, which raced it and clobbered
+  the flag back to `false`. Worse, reading zustand's `persist` API during
+  render crashes during SSR (`window.localStorage` isn't available server
+  side, which silently disables the persist middleware for that render pass).
+  Fixed by switching to `useSyncExternalStore` subscribed to zustand's own
+  `persist.hasHydrated()` / `onFinishHydration()`, with a server snapshot that
+  never touches `.persist` at all.
+
+- **The annotation canvas infinite-looped the moment an image had no shapes
+  yet.** The store selector was `state.shapesByImage[image.id] ?? []` — that
+  fallback is a *new* array literal every call, so zustand's snapshot
+  equality check never matched and React kept re-rendering forever. Fixed
+  with a module-level `EMPTY_SHAPES` constant so the fallback reference is
+  stable across renders. Caught this by actually driving the page with
+  Playwright rather than trusting the type-checker and build output alone.
+
+- **A Playwright test made double-click-to-close-polygon look broken.**
+  Scripted clicks fired back-to-back land close enough in time that Chromium
+  coalesces them into a native double-click, prematurely closing the polygon
+  after one point. Adding realistic delays between the test's individual
+  clicks confirmed the feature itself was fine — real users don't click that
+  fast.
