@@ -52,8 +52,16 @@ src/
     annotate/     # ImageUploader, ImageStrip, AnnotationCanvas, ShapeList
   store/          # zustand stores: auth, tasks, annotation
   lib/api/        # axios client + per-resource request functions
+  lib/annotation-colors.ts  # deterministic class -> color mapping
   types/          # shared TypeScript types
 ```
+
+The annotation tool also supports: per-shape **class labels** (pick from a
+list or add a new one, each class gets a consistent color), **zoom in/out**
+on the canvas, a **hide/show annotations** toggle, and **auto-save** — shape
+edits are debounced (800ms) and PUT to the backend automatically per image,
+with a small status indicator ("Saving...", "Saved", "Save failed") plus a
+manual "Save now" fallback.
 
 ## Challenges along the way
 
@@ -90,3 +98,13 @@ src/
   after one point. Adding realistic delays between the test's individual
   clicks confirmed the feature itself was fine — real users don't click that
   fast.
+
+- **Auto-save needed to key off the image being edited, not "whatever is
+  currently active."** A naive single debounce timer shared across all
+  images would drop a pending save if the user switched images before it
+  fired (the timer would get cleared and rescheduled for the *new* image).
+  Fixed with a per-image timer map (`Record<imageId, Timeout>`) and by
+  capturing the target image id at schedule time instead of reading
+  `activeImageId` when the timer fires. Verified with Playwright by
+  capturing network requests and confirming a `PUT .../shapes/` fires
+  ~800ms after drawing, with no Save button ever clicked.

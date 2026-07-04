@@ -8,18 +8,27 @@ import { ShapeList } from "@/components/annotate/ShapeList";
 import { Button } from "@/components/ui/button";
 import { useAnnotationStore } from "@/store/useAnnotationStore";
 
+const SAVE_STATUS_LABEL: Record<string, string> = {
+  idle: "Unsaved changes",
+  saving: "Saving...",
+  saved: "Saved",
+  error: "Save failed",
+};
+
 export default function AnnotatePage() {
   const {
     images,
     activeImageId,
     shapesByImage,
     selectedShapeId,
-    isLoading,
+    classes,
+    saveStatus,
     error,
     fetchImages,
     setActiveImage,
     removeShape,
     selectShape,
+    setShapeLabel,
     saveShapes,
   } = useAnnotationStore();
 
@@ -51,15 +60,33 @@ export default function AnnotatePage() {
           <div className="flex w-64 shrink-0 flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">Shapes</h2>
-              <Button size="sm" onClick={() => saveShapes()} disabled={isLoading}>
-                {isLoading ? "Saving..." : "Save"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <span
+                  className={
+                    saveStatus === "error"
+                      ? "text-xs text-destructive"
+                      : "text-xs text-muted-foreground"
+                  }
+                >
+                  {SAVE_STATUS_LABEL[saveStatus]}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => saveShapes()}
+                  disabled={saveStatus === "saving"}
+                >
+                  Save now
+                </Button>
+              </div>
             </div>
             <ShapeList
               shapes={shapes}
+              classes={classes}
               selectedShapeId={selectedShapeId}
               onSelect={selectShape}
               onDelete={removeShape}
+              onLabelChange={setShapeLabel}
             />
           </div>
         </div>

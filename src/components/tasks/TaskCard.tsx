@@ -37,7 +37,7 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
           : undefined
       }
       className={cn(
-        "flex cursor-grab flex-col gap-2 rounded-lg border bg-card p-3 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing",
+        "flex cursor-pointer flex-col gap-2 rounded-lg border bg-card p-3 shadow-sm transition-shadow hover:shadow-md",
         isDragging && "z-10 opacity-50"
       )}
     >
