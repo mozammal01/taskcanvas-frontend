@@ -6,6 +6,7 @@ import { ImageStrip } from "@/components/annotate/ImageStrip";
 import { AnnotationCanvas } from "@/components/annotate/AnnotationCanvas";
 import { ShapeList } from "@/components/annotate/ShapeList";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { useAnnotationStore } from "@/store/useAnnotationStore";
 
 const SAVE_STATUS_LABEL: Record<string, string> = {
@@ -23,6 +24,7 @@ export default function AnnotatePage() {
     selectedShapeId,
     classes,
     saveStatus,
+    isLoading,
     error,
     fetchImages,
     setActiveImage,
@@ -48,11 +50,18 @@ export default function AnnotatePage() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <ImageStrip
-        images={images}
-        activeImageId={activeImageId}
-        onSelect={setActiveImage}
-      />
+      {isLoading && images.length === 0 ? (
+        <div className="flex h-24 items-center justify-center gap-2 rounded-lg border border-dashed text-sm text-muted-foreground">
+          <Spinner size="sm" />
+          Loading images...
+        </div>
+      ) : (
+        <ImageStrip
+          images={images}
+          activeImageId={activeImageId}
+          onSelect={setActiveImage}
+        />
+      )}
 
       {activeImage ? (
         <div className="flex flex-1 gap-4">

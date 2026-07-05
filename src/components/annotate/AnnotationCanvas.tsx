@@ -14,6 +14,7 @@ import { useAnnotationStore } from "@/store/useAnnotationStore";
 import { colorForClass } from "@/lib/annotation-colors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -198,7 +199,16 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         </Button>
       </div>
 
-      <div className="w-fit max-w-full overflow-auto rounded-lg border bg-[repeating-conic-gradient(#e5e7eb_0%_25%,transparent_0%_50%)] bg-size-[16px_16px] p-2">
+      <div className="relative w-fit max-w-full overflow-auto rounded-lg border bg-[repeating-conic-gradient(#e5e7eb_0%_25%,transparent_0%_50%)] bg-size-[16px_16px] p-2">
+        {!htmlImage && (
+          <div
+            className="absolute inset-0 flex items-center justify-center gap-2 bg-muted/40 text-sm text-muted-foreground"
+            style={{ width: stageWidth + 16, height: stageHeight + 16 }}
+          >
+            <Spinner />
+            Loading image...
+          </div>
+        )}
         <Stage
           width={stageWidth}
           height={stageHeight}

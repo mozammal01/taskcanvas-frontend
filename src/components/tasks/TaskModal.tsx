@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -77,6 +78,7 @@ export function TaskModal({
 }: TaskModalProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const {
     register,
     handleSubmit,
@@ -209,22 +211,28 @@ export function TaskModal({
               <Button
                 type="button"
                 variant="destructive"
+                disabled={isDeleting}
                 onClick={async () => {
                   setDeleteError(null);
+                  setIsDeleting(true);
                   try {
                     await onDelete(task.id);
                     onOpenChange(false);
                   } catch {
                     setDeleteError("Could not delete this task. Please try again.");
+                  } finally {
+                    setIsDeleting(false);
                   }
                 }}
               >
-                Delete
+                {isDeleting && <Spinner size="sm" />}
+                {isDeleting ? "Deleting..." : "Delete"}
               </Button>
             ) : (
               <span />
             )}
             <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && <Spinner size="sm" className="text-primary-foreground" />}
               {isSubmitting ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>

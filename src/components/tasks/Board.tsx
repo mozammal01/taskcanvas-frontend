@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { DndContext, type DragEndEvent } from "@dnd-kit/core";
 import { Column } from "@/components/tasks/Column";
 import { TaskModal } from "@/components/tasks/TaskModal";
+import { Spinner } from "@/components/ui/spinner";
 import { useTaskStore } from "@/store/useTaskStore";
 import { TASK_STATUSES, type Task, type TaskStatus } from "@/types/task";
 
@@ -67,7 +68,10 @@ export function Board() {
         </div>
       </DndContext>
       {isLoading && (
-        <p className="text-center text-xs text-muted-foreground">Loading tasks...</p>
+        <p className="flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+          <Spinner size="sm" />
+          Loading tasks...
+        </p>
       )}
 
       <TaskModal

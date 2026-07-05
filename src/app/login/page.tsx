@@ -9,6 +9,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Card,
   CardContent,
@@ -103,6 +104,7 @@ export default function LoginPage() {
             )}
 
             <Button type="submit" className="mt-2 w-full" disabled={isSubmitting}>
+              {isSubmitting && <Spinner size="sm" className="text-primary-foreground" />}
               {isSubmitting ? "Signing in..." : "Sign in"}
             </Button>
           </form>

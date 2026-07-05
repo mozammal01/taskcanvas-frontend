@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore, useAuthHasHydrated } from "@/store/useAuthStore";
 import { Navbar } from "@/components/layout/Navbar";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function ProtectedLayout({
   children,
@@ -22,7 +23,8 @@ export default function ProtectedLayout({
 
   if (!hasHydrated || !tokens) {
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+      <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+        <Spinner size="sm" />
         Loading...
       </div>
     );
