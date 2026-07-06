@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
+import { ImagePlusIcon } from "lucide-react";
 import { ImageUploader } from "@/components/annotate/ImageUploader";
 import { ImageStrip } from "@/components/annotate/ImageStrip";
 import { AnnotationCanvas } from "@/components/annotate/AnnotationCanvas";
 import { ShapeList } from "@/components/annotate/ShapeList";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import { useAnnotationStore } from "@/store/useAnnotationStore";
 
 const SAVE_STATUS_LABEL: Record<string, string> = {
@@ -42,16 +45,25 @@ export default function AnnotatePage() {
   const shapes = activeImageId ? shapesByImage[activeImageId] ?? [] : [];
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+    <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-muted/20 p-4 md:p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Annotate</h1>
+        <div>
+          <h1 className="text-lg font-semibold">Annotate</h1>
+          <p className="text-sm text-muted-foreground">
+            Upload images, draw polygons, and label your annotations.
+          </p>
+        </div>
         <ImageUploader />
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && (
+        <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
       {isLoading && images.length === 0 ? (
-        <div className="flex h-24 items-center justify-center gap-2 rounded-lg border border-dashed text-sm text-muted-foreground">
+        <div className="flex h-24 items-center justify-center gap-2 rounded-xl border border-dashed text-sm text-muted-foreground">
           <Spinner size="sm" />
           Loading images...
         </div>
@@ -64,31 +76,48 @@ export default function AnnotatePage() {
       )}
 
       {activeImage ? (
-        <div className="flex flex-1 gap-4">
+        <div className="flex flex-1 flex-col gap-4 lg:flex-row">
           <AnnotationCanvas image={activeImage} />
-          <div className="flex w-64 shrink-0 flex-col gap-3">
+
+          <div className="flex w-full shrink-0 flex-col gap-3 rounded-xl border bg-card p-3 shadow-sm lg:w-72">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Shapes</h2>
-              <div className="flex items-center gap-2">
-                <span
-                  className={
-                    saveStatus === "error"
-                      ? "text-xs text-destructive"
-                      : "text-xs text-muted-foreground"
-                  }
-                >
-                  {SAVE_STATUS_LABEL[saveStatus]}
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => saveShapes()}
-                  disabled={saveStatus === "saving"}
-                >
-                  Save now
-                </Button>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-sm font-semibold">Shapes</h2>
+                <Badge variant="secondary">{shapes.length}</Badge>
               </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => saveShapes()}
+                disabled={saveStatus === "saving"}
+              >
+                {saveStatus === "saving" && <Spinner size="sm" />}
+                Save now
+              </Button>
             </div>
+
+            <div
+              className={cn(
+                "flex items-center gap-1.5 text-xs",
+                saveStatus === "error"
+                  ? "text-destructive"
+                  : saveStatus === "saved"
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-muted-foreground"
+              )}
+            >
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  saveStatus === "saving" && "animate-pulse bg-amber-500",
+                  saveStatus === "saved" && "bg-emerald-500",
+                  saveStatus === "error" && "bg-destructive",
+                  saveStatus === "idle" && "bg-muted-foreground/40"
+                )}
+              />
+              {SAVE_STATUS_LABEL[saveStatus]}
+            </div>
+
             <ShapeList
               shapes={shapes}
               classes={classes}
@@ -100,8 +129,12 @@ export default function AnnotatePage() {
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-          Upload an image to start annotating.
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed text-center">
+          <ImagePlusIcon className="size-8 text-muted-foreground/40" />
+          <p className="text-sm font-medium">No image selected</p>
+          <p className="max-w-xs text-sm text-muted-foreground">
+            Upload an image above to start drawing polygon annotations.
+          </p>
         </div>
       )}
     </div>
