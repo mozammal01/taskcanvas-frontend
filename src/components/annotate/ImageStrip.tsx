@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { CheckIcon, ImageIcon } from "lucide-react";
+import { CheckIcon, ImageIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import type { ImageAsset } from "@/types/annotation";
@@ -72,19 +73,53 @@ export function ImageStrip({ images, activeImageId, onSelect }: ImageStripProps)
     );
   }
 
+  const activeIndex = images.findIndex((img) => img.id === activeImageId);
+  const hasPrev = activeIndex > 0;
+  const hasNext = activeIndex >= 0 && activeIndex < images.length - 1;
+
   return (
-    <ScrollArea className="w-full whitespace-nowrap rounded-xl border bg-card shadow-sm">
-      <div className="flex gap-2.5 p-2.5">
-        {images.map((image) => (
-          <Thumbnail
-            key={image.id}
-            image={image}
-            isActive={image.id === activeImageId}
-            onSelect={() => onSelect(image.id)}
-          />
-        ))}
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between px-0.5">
+        <span className="text-xs font-medium text-muted-foreground">
+          {activeIndex >= 0
+            ? `Image ${activeIndex + 1} / ${images.length}`
+            : `${images.length} image${images.length === 1 ? "" : "s"}`}
+        </span>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Previous image"
+            disabled={!hasPrev}
+            onClick={() => hasPrev && onSelect(images[activeIndex - 1].id)}
+          >
+            <ChevronLeftIcon />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Next image"
+            disabled={!hasNext}
+            onClick={() => hasNext && onSelect(images[activeIndex + 1].id)}
+          >
+            <ChevronRightIcon />
+          </Button>
+        </div>
       </div>
-      <ScrollBar orientation="horizontal" />
-    </ScrollArea>
+
+      <ScrollArea className="w-full whitespace-nowrap rounded-xl border bg-card shadow-sm">
+        <div className="flex gap-2.5 p-2.5">
+          {images.map((image) => (
+            <Thumbnail
+              key={image.id}
+              image={image}
+              isActive={image.id === activeImageId}
+              onSelect={() => onSelect(image.id)}
+            />
+          ))}
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
+    </div>
   );
 }

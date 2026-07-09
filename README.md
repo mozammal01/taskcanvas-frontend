@@ -108,3 +108,19 @@ manual "Save now" fallback.
   `activeImageId` when the timer fires. Verified with Playwright by
   capturing network requests and confirming a `PUT .../shapes/` fires
   ~800ms after drawing, with no Save button ever clicked.
+
+- **Undo/redo, copy-to-next-image, mark-reviewed, and a real backend arriving
+  mid-session all collided in testing.** While adding history and a
+  draft/reviewed status per shape, a Playwright test against the newly-live
+  Express backend (running on :8000) started failing with `shapes.filter is
+  not a function`. Root cause: the store's `saveShapes`/`setActiveImage`
+  trusted the API response was always an array with no validation, and a
+  malformed response (or, in testing, an oversimplified mock) silently
+  replaced local shapes with something that crashed the render. Fixed by
+  guarding every place a shape list comes back from the network with
+  `Array.isArray(...)`, falling back to the shapes already in the store
+  instead of wiping them out. Also revealed a subtler bug in that same test:
+  a mock that unconditionally returned `[]` for the autosave `PUT` was
+  silently discarding whatever was just drawn a moment later — a reminder
+  that a test double has to honor the real contract (echo back what was
+  sent), not just return "something 200".

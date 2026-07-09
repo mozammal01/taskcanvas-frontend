@@ -34,6 +34,8 @@ export default function AnnotatePage() {
     removeShape,
     selectShape,
     setShapeLabel,
+    setShapeStatus,
+    copyShapeToNextImage,
     saveShapes,
   } = useAnnotationStore();
 
@@ -42,6 +44,8 @@ export default function AnnotatePage() {
   }, [fetchImages]);
 
   const activeImage = images.find((img) => img.id === activeImageId) ?? null;
+  const activeIndex = images.findIndex((img) => img.id === activeImageId);
+  const canCopyToNext = activeIndex >= 0 && activeIndex < images.length - 1;
   const shapes = activeImageId ? shapesByImage[activeImageId] ?? [] : [];
 
   return (
@@ -122,9 +126,12 @@ export default function AnnotatePage() {
               shapes={shapes}
               classes={classes}
               selectedShapeId={selectedShapeId}
+              canCopy={canCopyToNext}
               onSelect={selectShape}
               onDelete={removeShape}
               onLabelChange={setShapeLabel}
+              onStatusChange={setShapeStatus}
+              onCopy={copyShapeToNextImage}
             />
           </div>
         </div>
