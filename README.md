@@ -124,3 +124,20 @@ manual "Save now" fallback.
   silently discarding whatever was just drawn a moment later — a reminder
   that a test double has to honor the real contract (echo back what was
   sent), not just return "something 200".
+
+- **The canvas hint text ("Delete to remove, Esc to cancel, Ctrl+Z to
+  undo") wasn't actually reliable, and testing it surfaced a bug in my own
+  fix.** The keydown listener was attached to `window` with no check of
+  focus — so typing a class name that happened to contain the word "Delete"
+  deleted the selected shape mid-keystroke, and Ctrl+Z while naming a class
+  hijacked the browser's native text-undo. Fixed with an `isEditableTarget`
+  guard (checks `INPUT`/`TEXTAREA`/`contentEditable`) at the top of the
+  handler. Separately, "double-click to close" left 2 stray vertices at the
+  closing point — I assumed (based on the DOM spec) that a native dblclick
+  always fires `click, click, dblclick`, and wrote the fix to drop the last
+  2 points. That broke shape creation entirely. Debug logging showed Konva's
+  own click/dblclick disambiguation only forwards **one** extra `click`
+  before `dblclick`, not two — the DOM spec describes raw browser behavior,
+  not what a canvas library chooses to re-dispatch. Lesson: verify the
+  actual event sequence a library produces instead of reasoning from
+  general web platform knowledge, even when the reasoning sounds airtight.

@@ -61,6 +61,15 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.25;
 
+function isEditableTarget(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    (target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.isContentEditable)
+  );
+}
+
 function ToolbarIconButton({
   label,
   children,
@@ -118,6 +127,7 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (isEditableTarget(e.target)) return;
       if (e.key === "Escape") {
         setDraftPoints([]);
       }
@@ -151,8 +161,14 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
 
   const handleStageDblClick = () => {
     if (!isDrawMode) return;
-    if (draftPoints.length >= 3) {
-      addShape(draftPoints);
+    // Konva's own click/dblclick disambiguation forwards exactly one extra
+    // "click" for the double-click gesture's first click before "dblclick"
+    // fires (verified empirically — unlike raw DOM semantics, which fire
+    // two), so handleStageClick already appended one redundant point at the
+    // closing location. Drop it before closing the shape.
+    const finalPoints = draftPoints.slice(0, -1);
+    if (finalPoints.length >= 3) {
+      addShape(finalPoints);
     }
     setDraftPoints([]);
   };
