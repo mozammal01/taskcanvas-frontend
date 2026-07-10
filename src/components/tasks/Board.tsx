@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DndContext, type DragEndEvent } from "@dnd-kit/core";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import { Column } from "@/components/tasks/Column";
 import { TaskModal } from "@/components/tasks/TaskModal";
 import { Spinner } from "@/components/ui/spinner";
@@ -28,6 +34,15 @@ export function Board() {
   const [modalState, setModalState] = useState<ModalState>(null);
   const [modalKey, setModalKey] = useState(0);
 
+  // Without an activation constraint, dnd-kit's PointerSensor intercepts
+  // every pointerdown/up as a potential drag, which swallows plain clicks
+  // before they reach TaskCard's onClick — a card could never be opened for
+  // editing. Requiring 8px of movement before a drag "activates" lets a
+  // stationary click through normally while still allowing real drags.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
@@ -47,7 +62,7 @@ export function Board() {
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-hidden p-4">
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <DndContext onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="flex flex-1 gap-4 overflow-x-auto">
           {TASK_STATUSES.map(({ id, label }) => (
             <Column

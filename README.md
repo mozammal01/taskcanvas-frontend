@@ -141,3 +141,20 @@ manual "Save now" fallback.
   not what a canvas library chooses to re-dispatch. Lesson: verify the
   actual event sequence a library produces instead of reasoning from
   general web platform knowledge, even when the reasoning sounds airtight.
+
+- **A task card could never be opened for editing — and nothing had ever
+  caught it.** Found while doing a full real-backend (not mocked) pass:
+  clicking an existing `TaskCard` to edit it silently did nothing. Root
+  cause: `useDraggable`'s `listeners` were spread onto the card with no
+  activation constraint, so dnd-kit intercepted every pointerdown/up as a
+  potential drag before the click ever reached `onClick`. Confirmed by
+  temporarily overriding dnd-kit's pointer handlers with my own — the click
+  fired immediately once dnd-kit was out of the way. Fixed properly with
+  `useSensor(PointerSensor, { activationConstraint: { distance: 8 } })`,
+  the standard dnd-kit pattern for letting a stationary click and a real
+  drag coexist on the same element. This had been broken since Board.tsx
+  was first written; every earlier test exercised either drag-and-drop or
+  the "add task" button, never a plain click on an *existing* card — a
+  reminder that "click a thing that already renders correctly" is still a
+  path worth testing explicitly, not something code review catches by
+  inspection.
