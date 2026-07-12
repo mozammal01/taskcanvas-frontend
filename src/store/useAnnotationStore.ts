@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import * as annotateApi from "@/lib/api/annotate";
 import type { ImageAsset, Point, Shape, ShapeStatus } from "@/types/annotation";
 
@@ -28,6 +29,7 @@ interface AnnotationState {
   removeShape: (shapeId: string) => void;
   setShapeLabel: (shapeId: string, label: string) => void;
   setShapeStatus: (shapeId: string, status: ShapeStatus) => void;
+  updateShapePoints: (shapeId: string, points: Point[]) => void;
   copyShapeToNextImage: (shapeId: string) => void;
   undo: (imageId?: string) => void;
   redo: (imageId?: string) => void;
@@ -52,7 +54,7 @@ function scheduleAutoSave(get: () => AnnotationState, imageId: string) {
 function recordHistory(
   get: () => AnnotationState,
   set: (partial: Partial<AnnotationState>) => void,
-  imageId: string
+  imageId: string,
 ) {
   const current = get().shapesByImage[imageId] ?? [];
   const stack = get().historyByImage[imageId] ?? [];
@@ -65,227 +67,277 @@ function recordHistory(
   });
 }
 
-export const useAnnotationStore = create<AnnotationState>((set, get) => ({
-  images: [],
-  activeImageId: null,
-  shapesByImage: {},
-  historyByImage: {},
-  futureByImage: {},
-  selectedShapeId: null,
-  isLoading: false,
-  error: null,
-  classes: DEFAULT_CLASSES,
-  activeClass: DEFAULT_CLASSES[0],
-  saveStatus: "idle",
-
-  fetchImages: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await annotateApi.fetchImages();
-      const images = Array.isArray(response) ? response : [];
-      set({ images, isLoading: false });
-      if (!get().activeImageId && images.length > 0) {
-        get().setActiveImage(images[0].id);
-      }
-    } catch {
-      set({ error: "Could not load images", isLoading: false });
-    }
-  },
-
-  uploadImage: async (file) => {
-    try {
-      const image = await annotateApi.uploadImage(file);
-      set({ images: [...get().images, image] });
-      get().setActiveImage(image.id);
-    } catch {
-      set({ error: "Could not upload image" });
-    }
-  },
-
-  setActiveImage: async (imageId) => {
-    set({ activeImageId: imageId, selectedShapeId: null });
-    if (get().shapesByImage[imageId]) return;
-    try {
-      const response = await annotateApi.fetchShapes(imageId);
-      const shapes = Array.isArray(response) ? response : [];
-      set({ shapesByImage: { ...get().shapesByImage, [imageId]: shapes } });
-    } catch {
-      set({ error: "Could not load shapes for this image" });
-    }
-  },
-
-  addShape: (points) => {
-    const imageId = get().activeImageId;
-    if (!imageId) return;
-    recordHistory(get, set, imageId);
-    const shape: Shape = {
-      id: crypto.randomUUID(),
-      imageId,
-      points,
-      label: get().activeClass,
-      status: "draft",
-    };
-    const existing = get().shapesByImage[imageId] ?? [];
-    set({
-      shapesByImage: { ...get().shapesByImage, [imageId]: [...existing, shape] },
+export const useAnnotationStore = create<AnnotationState>()(
+  persist(
+    (set, get) => ({
+      images: [],
+      activeImageId: null,
+      shapesByImage: {},
+      historyByImage: {},
+      futureByImage: {},
+      selectedShapeId: null,
+      isLoading: false,
+      error: null,
+      classes: DEFAULT_CLASSES,
+      activeClass: DEFAULT_CLASSES[0],
       saveStatus: "idle",
-    });
-    scheduleAutoSave(get, imageId);
-  },
 
-  removeShape: (shapeId) => {
-    const imageId = get().activeImageId;
-    if (!imageId) return;
-    recordHistory(get, set, imageId);
-    const existing = get().shapesByImage[imageId] ?? [];
-    set({
-      shapesByImage: {
-        ...get().shapesByImage,
-        [imageId]: existing.filter((s) => s.id !== shapeId),
+      fetchImages: async () => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await annotateApi.fetchImages();
+          const images = Array.isArray(response) ? response : [];
+          set({ images, isLoading: false });
+          if (!get().activeImageId && images.length > 0) {
+            get().setActiveImage(images[0].id);
+          }
+        } catch {
+          set({ error: "Could not load images", isLoading: false });
+        }
       },
-      selectedShapeId:
-        get().selectedShapeId === shapeId ? null : get().selectedShapeId,
-      saveStatus: "idle",
-    });
-    scheduleAutoSave(get, imageId);
-  },
 
-  setShapeLabel: (shapeId, label) => {
-    const imageId = get().activeImageId;
-    if (!imageId) return;
-    recordHistory(get, set, imageId);
-    const existing = get().shapesByImage[imageId] ?? [];
-    set({
-      shapesByImage: {
-        ...get().shapesByImage,
-        [imageId]: existing.map((s) =>
-          s.id === shapeId ? { ...s, label } : s
-        ),
+      uploadImage: async (file) => {
+        try {
+          const image = await annotateApi.uploadImage(file);
+          set({ images: [...get().images, image] });
+          get().setActiveImage(image.id);
+        } catch {
+          set({ error: "Could not upload image" });
+        }
       },
-      saveStatus: "idle",
-    });
-    scheduleAutoSave(get, imageId);
-  },
 
-  setShapeStatus: (shapeId, status) => {
-    const imageId = get().activeImageId;
-    if (!imageId) return;
-    recordHistory(get, set, imageId);
-    const existing = get().shapesByImage[imageId] ?? [];
-    set({
-      shapesByImage: {
-        ...get().shapesByImage,
-        [imageId]: existing.map((s) =>
-          s.id === shapeId ? { ...s, status } : s
-        ),
+      setActiveImage: async (imageId) => {
+        set({ activeImageId: imageId, selectedShapeId: null });
+        if (get().shapesByImage[imageId]) return;
+        try {
+          const response = await annotateApi.fetchShapes(imageId);
+          const shapes = Array.isArray(response) ? response : [];
+          set({ shapesByImage: { ...get().shapesByImage, [imageId]: shapes } });
+        } catch {
+          set({ error: "Could not load shapes for this image" });
+        }
       },
-      saveStatus: "idle",
-    });
-    scheduleAutoSave(get, imageId);
-  },
 
-  copyShapeToNextImage: (shapeId) => {
-    const imageId = get().activeImageId;
-    if (!imageId) return;
-    const images = get().images;
-    const currentIndex = images.findIndex((img) => img.id === imageId);
-    const nextImage = images[currentIndex + 1];
-    if (!nextImage) return;
-    const shape = (get().shapesByImage[imageId] ?? []).find((s) => s.id === shapeId);
-    if (!shape) return;
-
-    const newShape: Shape = {
-      ...shape,
-      id: crypto.randomUUID(),
-      imageId: nextImage.id,
-      status: "draft",
-    };
-
-    get().setActiveImage(nextImage.id).then(() => {
-      recordHistory(get, set, nextImage.id);
-      const existing = get().shapesByImage[nextImage.id] ?? [];
-      set({
-        shapesByImage: {
-          ...get().shapesByImage,
-          [nextImage.id]: [...existing, newShape],
-        },
-        selectedShapeId: newShape.id,
-        saveStatus: "idle",
-      });
-      scheduleAutoSave(get, nextImage.id);
-    });
-  },
-
-  undo: (imageId) => {
-    const targetId = imageId ?? get().activeImageId;
-    if (!targetId) return;
-    const stack = get().historyByImage[targetId] ?? [];
-    if (stack.length === 0) return;
-    const previous = stack[stack.length - 1];
-    const current = get().shapesByImage[targetId] ?? [];
-    set({
-      shapesByImage: { ...get().shapesByImage, [targetId]: previous },
-      historyByImage: { ...get().historyByImage, [targetId]: stack.slice(0, -1) },
-      futureByImage: {
-        ...get().futureByImage,
-        [targetId]: [...(get().futureByImage[targetId] ?? []), current],
+      addShape: (points) => {
+        const imageId = get().activeImageId;
+        if (!imageId) return;
+        recordHistory(get, set, imageId);
+        const shape: Shape = {
+          id: crypto.randomUUID(),
+          imageId,
+          points,
+          label: get().activeClass,
+          status: "draft",
+        };
+        const existing = get().shapesByImage[imageId] ?? [];
+        set({
+          shapesByImage: {
+            ...get().shapesByImage,
+            [imageId]: [...existing, shape],
+          },
+          saveStatus: "idle",
+        });
+        scheduleAutoSave(get, imageId);
       },
-      saveStatus: "idle",
-    });
-    scheduleAutoSave(get, targetId);
-  },
 
-  redo: (imageId) => {
-    const targetId = imageId ?? get().activeImageId;
-    if (!targetId) return;
-    const stack = get().futureByImage[targetId] ?? [];
-    if (stack.length === 0) return;
-    const next = stack[stack.length - 1];
-    const current = get().shapesByImage[targetId] ?? [];
-    set({
-      shapesByImage: { ...get().shapesByImage, [targetId]: next },
-      futureByImage: { ...get().futureByImage, [targetId]: stack.slice(0, -1) },
-      historyByImage: {
-        ...get().historyByImage,
-        [targetId]: [...(get().historyByImage[targetId] ?? []), current],
+      removeShape: (shapeId) => {
+        const imageId = get().activeImageId;
+        if (!imageId) return;
+        recordHistory(get, set, imageId);
+        const existing = get().shapesByImage[imageId] ?? [];
+        set({
+          shapesByImage: {
+            ...get().shapesByImage,
+            [imageId]: existing.filter((s) => s.id !== shapeId),
+          },
+          selectedShapeId:
+            get().selectedShapeId === shapeId ? null : get().selectedShapeId,
+          saveStatus: "idle",
+        });
+        scheduleAutoSave(get, imageId);
       },
-      saveStatus: "idle",
-    });
-    scheduleAutoSave(get, targetId);
-  },
 
-  selectShape: (shapeId) => set({ selectedShapeId: shapeId }),
+      setShapeLabel: (shapeId, label) => {
+        const imageId = get().activeImageId;
+        if (!imageId) return;
+        recordHistory(get, set, imageId);
+        const existing = get().shapesByImage[imageId] ?? [];
+        set({
+          shapesByImage: {
+            ...get().shapesByImage,
+            [imageId]: existing.map((s) =>
+              s.id === shapeId ? { ...s, label } : s,
+            ),
+          },
+          saveStatus: "idle",
+        });
+        scheduleAutoSave(get, imageId);
+      },
 
-  addClass: (name) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    set((state) => ({
-      classes: state.classes.includes(trimmed)
-        ? state.classes
-        : [...state.classes, trimmed],
-      activeClass: trimmed,
-    }));
-  },
+      setShapeStatus: (shapeId, status) => {
+        const imageId = get().activeImageId;
+        if (!imageId) return;
+        recordHistory(get, set, imageId);
+        const existing = get().shapesByImage[imageId] ?? [];
+        set({
+          shapesByImage: {
+            ...get().shapesByImage,
+            [imageId]: existing.map((s) =>
+              s.id === shapeId ? { ...s, status } : s,
+            ),
+          },
+          saveStatus: "idle",
+        });
+        scheduleAutoSave(get, imageId);
+      },
 
-  setActiveClass: (name) => set({ activeClass: name }),
+      updateShapePoints: (shapeId, points) => {
+        const imageId = get().activeImageId;
+        if (!imageId) return;
+        recordHistory(get, set, imageId);
+        const existing = get().shapesByImage[imageId] ?? [];
+        set({
+          shapesByImage: {
+            ...get().shapesByImage,
+            [imageId]: existing.map((s) =>
+              s.id === shapeId ? { ...s, points } : s,
+            ),
+          },
+          saveStatus: "idle",
+        });
+        scheduleAutoSave(get, imageId);
+      },
 
-  saveShapes: async (imageId) => {
-    const targetImageId = imageId ?? get().activeImageId;
-    if (!targetImageId) return;
-    const localShapes = get().shapesByImage[targetImageId] ?? [];
-    set({ saveStatus: "saving", error: null });
-    try {
-      const response = await annotateApi.saveShapes(targetImageId, localShapes);
-      // Only trust the server's shape list if it actually returned one; an
-      // unexpected response shape (empty body, error page, etc.) should not
-      // wipe out shapes the user just drew.
-      const shapes = Array.isArray(response) ? response : localShapes;
-      set({
-        shapesByImage: { ...get().shapesByImage, [targetImageId]: shapes },
-        saveStatus: "saved",
-      });
-    } catch {
-      set({ error: "Could not save shapes", saveStatus: "error" });
-    }
-  },
-}));
+      copyShapeToNextImage: (shapeId) => {
+        const imageId = get().activeImageId;
+        if (!imageId) return;
+        const images = get().images;
+        const currentIndex = images.findIndex((img) => img.id === imageId);
+        const nextImage = images[currentIndex + 1];
+        if (!nextImage) return;
+        const shape = (get().shapesByImage[imageId] ?? []).find(
+          (s) => s.id === shapeId,
+        );
+        if (!shape) return;
+
+        const newShape: Shape = {
+          ...shape,
+          id: crypto.randomUUID(),
+          imageId: nextImage.id,
+          status: "draft",
+        };
+
+        get()
+          .setActiveImage(nextImage.id)
+          .then(() => {
+            recordHistory(get, set, nextImage.id);
+            const existing = get().shapesByImage[nextImage.id] ?? [];
+            set({
+              shapesByImage: {
+                ...get().shapesByImage,
+                [nextImage.id]: [...existing, newShape],
+              },
+              selectedShapeId: newShape.id,
+              saveStatus: "idle",
+            });
+            scheduleAutoSave(get, nextImage.id);
+          });
+      },
+
+      undo: (imageId) => {
+        const targetId = imageId ?? get().activeImageId;
+        if (!targetId) return;
+        const stack = get().historyByImage[targetId] ?? [];
+        if (stack.length === 0) return;
+        const previous = stack[stack.length - 1];
+        const current = get().shapesByImage[targetId] ?? [];
+        set({
+          shapesByImage: { ...get().shapesByImage, [targetId]: previous },
+          historyByImage: {
+            ...get().historyByImage,
+            [targetId]: stack.slice(0, -1),
+          },
+          futureByImage: {
+            ...get().futureByImage,
+            [targetId]: [
+              ...(get().futureByImage[targetId] ?? []),
+              current,
+            ].slice(-MAX_HISTORY),
+          },
+          saveStatus: "idle",
+        });
+        scheduleAutoSave(get, targetId);
+      },
+
+      redo: (imageId) => {
+        const targetId = imageId ?? get().activeImageId;
+        if (!targetId) return;
+        const stack = get().futureByImage[targetId] ?? [];
+        if (stack.length === 0) return;
+        const next = stack[stack.length - 1];
+        const current = get().shapesByImage[targetId] ?? [];
+        set({
+          shapesByImage: { ...get().shapesByImage, [targetId]: next },
+          futureByImage: {
+            ...get().futureByImage,
+            [targetId]: stack.slice(0, -1),
+          },
+          historyByImage: {
+            ...get().historyByImage,
+            [targetId]: [
+              ...(get().historyByImage[targetId] ?? []),
+              current,
+            ].slice(-MAX_HISTORY),
+          },
+          saveStatus: "idle",
+        });
+        scheduleAutoSave(get, targetId);
+      },
+
+      selectShape: (shapeId) => set({ selectedShapeId: shapeId }),
+
+      addClass: (name) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        set((state) => ({
+          classes: state.classes.includes(trimmed)
+            ? state.classes
+            : [...state.classes, trimmed],
+          activeClass: trimmed,
+        }));
+      },
+
+      setActiveClass: (name) => set({ activeClass: name }),
+
+      saveShapes: async (imageId) => {
+        const targetImageId = imageId ?? get().activeImageId;
+        if (!targetImageId) return;
+        const localShapes = get().shapesByImage[targetImageId] ?? [];
+        set({ saveStatus: "saving", error: null });
+        try {
+          const response = await annotateApi.saveShapes(
+            targetImageId,
+            localShapes,
+          );
+          // Only trust the server's shape list if it actually returned one; an
+          // unexpected response shape (empty body, error page, etc.) should not
+          // wipe out shapes the user just drew.
+          const shapes = Array.isArray(response) ? response : localShapes;
+          set({
+            shapesByImage: { ...get().shapesByImage, [targetImageId]: shapes },
+            saveStatus: "saved",
+          });
+        } catch {
+          set({ error: "Could not save shapes", saveStatus: "error" });
+        }
+      },
+    }),
+    {
+      name: "taskcanvas-annotation-classes",
+      partialize: (state) => ({
+        classes: state.classes,
+        activeClass: state.activeClass,
+      }),
+    },
+  ),
+);

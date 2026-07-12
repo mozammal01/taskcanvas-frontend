@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Stage, Layer, Image as KonvaImage, Line, Circle } from "react-konva";
+import { useEffect, useRef, useState } from "react";
+import {
+  Stage,
+  Layer,
+  Image as KonvaImage,
+  Line,
+  Circle,
+  Group,
+} from "react-konva";
 import type Konva from "konva";
 import {
   EyeIcon,
@@ -33,7 +40,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ImageAsset, Point, Shape } from "@/types/annotation";
 
@@ -77,7 +88,9 @@ function ToolbarIconButton({
 }: React.ComponentProps<typeof Button> & { label: string }) {
   return (
     <Tooltip>
-      <TooltipTrigger render={<Button variant="ghost" size="icon-sm" {...props} />}>
+      <TooltipTrigger
+        render={<Button variant="ghost" size="icon-sm" {...props} />}
+      >
         {children}
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
@@ -92,18 +105,21 @@ interface AnnotationCanvasProps {
 export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
   const htmlImage = useHtmlImage(image.url);
   const shapes = useAnnotationStore(
-    (state) => state.shapesByImage[image.id] ?? EMPTY_SHAPES
+    (state) => state.shapesByImage[image.id] ?? EMPTY_SHAPES,
   );
   const undoStack = useAnnotationStore(
-    (state) => state.historyByImage[image.id] ?? EMPTY_HISTORY
+    (state) => state.historyByImage[image.id] ?? EMPTY_HISTORY,
   );
   const redoStack = useAnnotationStore(
-    (state) => state.futureByImage[image.id] ?? EMPTY_HISTORY
+    (state) => state.futureByImage[image.id] ?? EMPTY_HISTORY,
   );
   const selectedShapeId = useAnnotationStore((state) => state.selectedShapeId);
   const addShape = useAnnotationStore((state) => state.addShape);
   const removeShape = useAnnotationStore((state) => state.removeShape);
   const selectShape = useAnnotationStore((state) => state.selectShape);
+  const updateShapePoints = useAnnotationStore(
+    (state) => state.updateShapePoints,
+  );
   const undo = useAnnotationStore((state) => state.undo);
   const redo = useAnnotationStore((state) => state.redo);
   const classes = useAnnotationStore((state) => state.classes);
@@ -119,6 +135,12 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
   const [newClassName, setNewClassName] = useState("");
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
   const [hoveredShapeId, setHoveredShapeId] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const panCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => panCleanupRef.current?.();
+  }, []);
 
   const baseScale = Math.min(1, STAGE_MAX_WIDTH / image.width);
   const scale = baseScale * zoom;
@@ -132,6 +154,7 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         setDraftPoints([]);
       }
       if ((e.key === "Delete" || e.key === "Backspace") && selectedShapeId) {
+        e.preventDefault();
         removeShape(selectedShapeId);
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
@@ -180,13 +203,63 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
     setIsAddClassOpen(false);
   };
 
-  const setCursor = (cursor: string) => (e: Konva.KonvaEventObject<MouseEvent>) => {
-    const container = e.target.getStage()?.container();
-    if (container) container.style.cursor = cursor;
+  const setCursor =
+    (cursor: string) => (e: Konva.KonvaEventObject<MouseEvent>) => {
+      const container = e.target.getStage()?.container();
+      if (container) container.style.cursor = cursor;
+    };
+
+  // Click-drag panning: only when clicking the empty canvas background in
+  // select mode, so it doesn't fight with drawing new points or dragging a
+  // shape/vertex (those are handled by Konva's own per-node drag).
+  const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (isDrawMode) return;
+    if (e.evt.button !== 0) return; // left click only, not middle/right
+    const stage = e.target.getStage();
+    const scrollEl = scrollContainerRef.current;
+    if (!stage || !scrollEl) return;
+    // The background image covers the whole stage, so e.target is that
+    // Image node (not the Stage itself) for most clicks. Only bail out when
+    // the click actually hit a shape outline or vertex handle.
+    const targetClass = e.target.getClassName();
+    if (targetClass === "Line" || targetClass === "Circle") return;
+
+    // Defensively end any previous pan whose mouseup/blur we might have
+    // missed, so listeners never stack.
+    panCleanupRef.current?.();
+
+    const startX = e.evt.clientX;
+    const startY = e.evt.clientY;
+    const startScrollLeft = scrollEl.scrollLeft;
+    const startScrollTop = scrollEl.scrollTop;
+    scrollEl.style.cursor = "grabbing";
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      scrollEl.scrollLeft = startScrollLeft - (ev.clientX - startX);
+      scrollEl.scrollTop = startScrollTop - (ev.clientY - startY);
+    };
+    const stopPanning = () => {
+      scrollEl.style.cursor = "";
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", stopPanning);
+      window.removeEventListener("blur", stopPanning);
+      panCleanupRef.current = null;
+    };
+    panCleanupRef.current = stopPanning;
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", stopPanning);
+    // If the window loses focus mid-drag (alt-tab, dragging the mouse
+    // outside the OS window), no mouseup ever reaches us — end the pan here
+    // too so the listeners and "grabbing" cursor don't get stuck forever.
+    window.addEventListener("blur", stopPanning);
   };
 
   const isShapeVisible = (shape: Shape) =>
     (shape.status ?? "draft") === "reviewed" ? showReviewed : showDraft;
+
+  const editableShape =
+    !isDrawMode &&
+    shapes.find((s) => s.id === selectedShapeId && isShapeVisible(s));
 
   return (
     <div className="flex flex-1 flex-col gap-3">
@@ -228,7 +301,9 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
 
         <Popover open={isAddClassOpen} onOpenChange={setIsAddClassOpen}>
           <PopoverTrigger
-            render={<Button variant="ghost" size="icon-sm" aria-label="Add class" />}
+            render={
+              <Button variant="ghost" size="icon-sm" aria-label="Add class" />
+            }
           >
             <PlusIcon />
           </PopoverTrigger>
@@ -261,7 +336,9 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
 
         <ToolbarIconButton
           label={isDrawMode ? "Switch to select mode" : "Switch to draw mode"}
-          aria-label={isDrawMode ? "Switch to select mode" : "Switch to draw mode"}
+          aria-label={
+            isDrawMode ? "Switch to select mode" : "Switch to draw mode"
+          }
           className={isDrawMode ? "bg-primary/10 text-primary" : undefined}
           onClick={() => {
             setIsDrawMode((v) => !v);
@@ -296,7 +373,9 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
           label="Zoom out"
           aria-label="Zoom out"
           disabled={zoom <= MIN_ZOOM}
-          onClick={() => setZoom((z) => Math.max(MIN_ZOOM, +(z - ZOOM_STEP).toFixed(2)))}
+          onClick={() =>
+            setZoom((z) => Math.max(MIN_ZOOM, +(z - ZOOM_STEP).toFixed(2)))
+          }
         >
           <ZoomOutIcon />
         </ToolbarIconButton>
@@ -307,7 +386,9 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
           label="Zoom in"
           aria-label="Zoom in"
           disabled={zoom >= MAX_ZOOM}
-          onClick={() => setZoom((z) => Math.min(MAX_ZOOM, +(z + ZOOM_STEP).toFixed(2)))}
+          onClick={() =>
+            setZoom((z) => Math.min(MAX_ZOOM, +(z + ZOOM_STEP).toFixed(2)))
+          }
         >
           <ZoomInIcon />
         </ToolbarIconButton>
@@ -324,18 +405,26 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
         <div className="mx-1.5 h-6 w-px bg-border" />
 
         <ToolbarIconButton
-          label={showDraft ? "Hide draft annotations" : "Show draft annotations"}
-          aria-label={showDraft ? "Hide draft annotations" : "Show draft annotations"}
+          label={
+            showDraft ? "Hide draft annotations" : "Show draft annotations"
+          }
+          aria-label={
+            showDraft ? "Hide draft annotations" : "Show draft annotations"
+          }
           onClick={() => setShowDraft((v) => !v)}
         >
           {showDraft ? <EyeIcon /> : <EyeOffIcon />}
         </ToolbarIconButton>
         <ToolbarIconButton
           label={
-            showReviewed ? "Hide reviewed annotations" : "Show reviewed annotations"
+            showReviewed
+              ? "Hide reviewed annotations"
+              : "Show reviewed annotations"
           }
           aria-label={
-            showReviewed ? "Hide reviewed annotations" : "Show reviewed annotations"
+            showReviewed
+              ? "Hide reviewed annotations"
+              : "Show reviewed annotations"
           }
           className={showReviewed ? "text-emerald-600" : undefined}
           onClick={() => setShowReviewed((v) => !v)}
@@ -345,14 +434,16 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
       </div>
 
       <div
+        ref={scrollContainerRef}
         className={cn(
           "relative w-fit max-w-full overflow-auto rounded-xl border bg-[repeating-conic-gradient(#eef0f2_0%_25%,transparent_0%_50%)] bg-size-[16px_16px] p-3 shadow-sm",
-          isDrawMode ? "cursor-crosshair" : "cursor-default"
+          isDrawMode ? "cursor-crosshair" : "cursor-grab",
         )}
       >
         {draftPoints.length > 0 && (
           <div className="absolute top-4 left-4 z-10 rounded-full bg-foreground/90 px-2.5 py-1 text-xs font-medium text-background shadow-sm">
-            Drawing... {draftPoints.length} point{draftPoints.length === 1 ? "" : "s"}
+            Drawing... {draftPoints.length} point
+            {draftPoints.length === 1 ? "" : "s"}
           </div>
         )}
         {!isDrawMode && (
@@ -376,50 +467,120 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
           height={stageHeight}
           onClick={handleStageClick}
           onDblClick={handleStageDblClick}
+          onMouseDown={handleStageMouseDown}
           className="rounded-lg"
         >
           <Layer>
             {htmlImage && (
-              <KonvaImage image={htmlImage} width={stageWidth} height={stageHeight} />
+              <KonvaImage
+                image={htmlImage}
+                width={stageWidth}
+                height={stageHeight}
+              />
             )}
 
             {shapes.filter(isShapeVisible).map((shape) => {
               const isSelected = shape.id === selectedShapeId;
               const isHovered = shape.id === hoveredShapeId;
               const isReviewed = (shape.status ?? "draft") === "reviewed";
+              const canEdit = !isDrawMode && isSelected;
               const color = isSelected ? "#ef4444" : colorForClass(shape.label);
               return (
-                <Line
+                <Group
                   key={shape.id}
-                  points={shape.points.flatMap((p) => [p.x * scale, p.y * scale])}
-                  closed
-                  stroke={color}
-                  strokeWidth={isSelected || isHovered ? 3 : 2}
-                  dash={isReviewed ? undefined : [6, 3]}
-                  fill={color + (isHovered && !isSelected ? "4d" : "33")}
-                  shadowColor={isSelected ? color : undefined}
-                  shadowBlur={isSelected ? 8 : 0}
-                  shadowOpacity={isSelected ? 0.5 : 0}
-                  onClick={(e) => {
+                  draggable={canEdit}
+                  onDragStart={(e) => {
                     e.cancelBubble = true;
-                    selectShape(shape.id);
+                    setCursor("grabbing")(e);
                   }}
-                  onMouseEnter={(e) => {
-                    setHoveredShapeId(shape.id);
-                    setCursor("pointer")(e);
+                  onDragEnd={(e) => {
+                    e.cancelBubble = true;
+                    const node = e.target;
+                    const dx = node.x() / scale;
+                    const dy = node.y() / scale;
+                    if (dx !== 0 || dy !== 0) {
+                      updateShapePoints(
+                        shape.id,
+                        shape.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+                      );
+                    }
+                    node.position({ x: 0, y: 0 });
+                    setCursor("grab")(e);
                   }}
-                  onMouseLeave={(e) => {
-                    setHoveredShapeId(null);
-                    setCursor(isDrawMode ? "crosshair" : "default")(e);
-                  }}
-                />
+                >
+                  <Line
+                    points={shape.points.flatMap((p) => [
+                      p.x * scale,
+                      p.y * scale,
+                    ])}
+                    closed
+                    stroke={color}
+                    strokeWidth={isSelected || isHovered ? 3 : 2}
+                    dash={isReviewed ? undefined : [6, 3]}
+                    fill={color + (isHovered && !isSelected ? "4d" : "33")}
+                    shadowColor={isSelected ? color : undefined}
+                    shadowBlur={isSelected ? 8 : 0}
+                    shadowOpacity={isSelected ? 0.5 : 0}
+                    onClick={(e) => {
+                      e.cancelBubble = true;
+                      selectShape(shape.id);
+                    }}
+                    onMouseEnter={(e) => {
+                      setHoveredShapeId(shape.id);
+                      setCursor(canEdit ? "move" : "pointer")(e);
+                    }}
+                    onMouseLeave={(e) => {
+                      setHoveredShapeId(null);
+                      setCursor(isDrawMode ? "crosshair" : "grab")(e);
+                    }}
+                  />
+                </Group>
               );
             })}
+
+            {/* Vertex handles for the selected, editable shape only. Rendered
+                last (on top of every shape's Group) so a handle is never
+                hidden behind a later-drawn, overlapping shape. */}
+            {editableShape &&
+              editableShape.points.map((p, i) => (
+                <Circle
+                  key={i}
+                  x={p.x * scale}
+                  y={p.y * scale}
+                  radius={5}
+                  fill="#ffffff"
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  draggable
+                  onDragStart={(e) => {
+                    e.cancelBubble = true;
+                    setCursor("grabbing")(e);
+                  }}
+                  onDragEnd={(e) => {
+                    e.cancelBubble = true;
+                    const node = e.target;
+                    const newPoints = editableShape.points.map((pt, idx) =>
+                      idx === i
+                        ? { x: node.x() / scale, y: node.y() / scale }
+                        : pt,
+                    );
+                    updateShapePoints(editableShape.id, newPoints);
+                    setCursor("grab")(e);
+                  }}
+                  onMouseEnter={(e) => {
+                    e.cancelBubble = true;
+                    setCursor("grab")(e);
+                  }}
+                />
+              ))}
 
             {draftPoints.length > 0 && (
               <>
                 <Line
-                  points={draftPoints.flatMap((p) => [p.x * scale, p.y * scale])}
+                  points={draftPoints.flatMap((p) => [
+                    p.x * scale,
+                    p.y * scale,
+                  ])}
                   stroke="#3b82f6"
                   strokeWidth={2}
                   dash={[4, 4]}
@@ -442,13 +603,14 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
       <p className="text-xs text-muted-foreground">
         {isDrawMode
           ? "Click to place polygon points, double-click to close the shape."
-          : "Switch to draw mode to add new shapes."}{" "}
+          : "Select a shape, then drag its outline to move it or drag a handle to reshape it. Drag empty canvas to pan."}{" "}
         Select a shape and press{" "}
         <kbd className="rounded border px-1 py-0.5 text-[10px]">Delete</kbd> to
-        remove it, <kbd className="rounded border px-1 py-0.5 text-[10px]">Esc</kbd> to
+        remove it,{" "}
+        <kbd className="rounded border px-1 py-0.5 text-[10px]">Esc</kbd> to
         cancel, or{" "}
-        <kbd className="rounded border px-1 py-0.5 text-[10px]">Ctrl+Z</kbd> to undo.
-        Solid outlines are reviewed shapes, dashed are drafts.
+        <kbd className="rounded border px-1 py-0.5 text-[10px]">Ctrl+Z</kbd> to
+        undo. Solid outlines are reviewed shapes, dashed are drafts.
       </p>
     </div>
   );
