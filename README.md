@@ -3,7 +3,9 @@
 Frontend for **TaskCanvas**, a 2-in-1 app combining a date-based Kanban task
 board (`/tasks`) and a polygon image-annotation tool (`/annotate`), built for
 the "404 Project Not Found" assignment. This repo is the Next.js client; it
-talks to a separate Django REST backend over HTTP.
+talks to a separate [TaskCanvas backend](https://github.com/mozammal01/taskcanvas-backend)
+over HTTP. That backend intentionally uses Express + PostgreSQL instead of
+the assignment's suggested Django — see its README for why.
 
 ## Tech stack
 
@@ -20,8 +22,10 @@ talks to a separate Django REST backend over HTTP.
 - Node.js **v24.11.0** (developed/tested on this version; Node 20 LTS+ should
   also work since Next.js 16 requires Node ≥ 20)
 - npm 11+ (ships with the above Node version)
-- A running instance of the [TaskCanvas backend](#) (Django), or just the
-  frontend on its own for UI work — API calls will fail gracefully without it
+- A running instance of the [TaskCanvas backend](https://github.com/mozammal01/taskcanvas-backend)
+  (Express + TypeScript + PostgreSQL, not Django — see that repo's README for
+  why), or just the frontend on its own for UI work — API calls will fail
+  gracefully without it
 
 ## Getting started
 
@@ -32,7 +36,13 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000). You'll be redirected to
-`/login`; once authenticated you land on `/tasks`.
+`/login`; once authenticated you land on `/tasks`. The backend seeds a demo
+user you can log in with out of the box:
+
+```
+email:    demo@taskcanvas.dev
+password: Demo1234!
+```
 
 ### Environment variables
 
