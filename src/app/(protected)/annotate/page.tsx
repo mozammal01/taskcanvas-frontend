@@ -31,6 +31,7 @@ export default function AnnotatePage() {
     error,
     fetchImages,
     setActiveImage,
+    removeImage,
     removeShape,
     selectShape,
     setShapeLabel,
@@ -46,7 +47,7 @@ export default function AnnotatePage() {
   const activeImage = images.find((img) => img.id === activeImageId) ?? null;
   const activeIndex = images.findIndex((img) => img.id === activeImageId);
   const canCopyToNext = activeIndex >= 0 && activeIndex < images.length - 1;
-  const shapes = activeImageId ? shapesByImage[activeImageId] ?? [] : [];
+  const shapes = activeImageId ? (shapesByImage[activeImageId] ?? []) : [];
 
   return (
     <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-muted/20 p-4 md:p-6">
@@ -76,6 +77,7 @@ export default function AnnotatePage() {
           images={images}
           activeImageId={activeImageId}
           onSelect={setActiveImage}
+          onDelete={removeImage}
         />
       )}
 
@@ -107,7 +109,7 @@ export default function AnnotatePage() {
                   ? "text-destructive"
                   : saveStatus === "saved"
                     ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-muted-foreground"
+                    : "text-muted-foreground",
               )}
             >
               <span
@@ -116,7 +118,7 @@ export default function AnnotatePage() {
                   saveStatus === "saving" && "animate-pulse bg-amber-500",
                   saveStatus === "saved" && "bg-emerald-500",
                   saveStatus === "error" && "bg-destructive",
-                  saveStatus === "idle" && "bg-muted-foreground/40"
+                  saveStatus === "idle" && "bg-muted-foreground/40",
                 )}
               />
               {SAVE_STATUS_LABEL[saveStatus]}

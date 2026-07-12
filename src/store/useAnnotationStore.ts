@@ -24,6 +24,7 @@ interface AnnotationState {
 
   fetchImages: () => Promise<void>;
   uploadImage: (file: File) => Promise<void>;
+  removeImage: (imageId: string) => Promise<void>;
   setActiveImage: (imageId: string) => Promise<void>;
   addShape: (points: Point[]) => void;
   removeShape: (shapeId: string) => void;
@@ -37,6 +38,12 @@ interface AnnotationState {
   addClass: (name: string) => void;
   setActiveClass: (name: string) => void;
   saveShapes: (imageId?: string) => Promise<void>;
+}
+
+function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  const next = { ...record };
+  delete next[key];
+  return next;
 }
 
 const autoSaveTimers: Record<string, ReturnType<typeof setTimeout>> = {};
@@ -103,6 +110,37 @@ export const useAnnotationStore = create<AnnotationState>()(
           get().setActiveImage(image.id);
         } catch {
           set({ error: "Could not upload image" });
+        }
+      },
+
+      removeImage: async (imageId) => {
+        try {
+          await annotateApi.deleteImage(imageId);
+        } catch {
+          set({ error: "Could not delete this image" });
+          return;
+        }
+
+        const existingTimer = autoSaveTimers[imageId];
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+          delete autoSaveTimers[imageId];
+        }
+
+        const shapesByImage = omitKey(get().shapesByImage, imageId);
+        const historyByImage = omitKey(get().historyByImage, imageId);
+        const futureByImage = omitKey(get().futureByImage, imageId);
+        const images = get().images.filter((img) => img.id !== imageId);
+        const wasActive = get().activeImageId === imageId;
+
+        set({ images, shapesByImage, historyByImage, futureByImage });
+
+        if (wasActive) {
+          if (images[0]) {
+            get().setActiveImage(images[0].id);
+          } else {
+            set({ activeImageId: null, selectedShapeId: null });
+          }
         }
       },
 

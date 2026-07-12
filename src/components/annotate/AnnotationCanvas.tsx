@@ -22,6 +22,7 @@ import {
   Undo2Icon,
   Redo2Icon,
   CheckCheckIcon,
+  ImageOffIcon,
 } from "lucide-react";
 import { useAnnotationStore } from "@/store/useAnnotationStore";
 import { colorForClass } from "@/lib/annotation-colors";
@@ -52,19 +53,35 @@ const EMPTY_SHAPES: Shape[] = [];
 const EMPTY_HISTORY: Shape[][] = [];
 
 function useHtmlImage(src: string) {
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  // Keyed by src so a load that finishes after the src has already changed
+  // again can't paint a stale result — stale results are simply reported as
+  // still loading rather than shown.
+  const [result, setResult] = useState<{
+    src: string;
+    image: HTMLImageElement | null;
+    failed: boolean;
+  }>({ src: "", image: null, failed: false });
 
   useEffect(() => {
+    let cancelled = false;
     const img = new window.Image();
     img.crossOrigin = "anonymous";
-    img.onload = () => setImage(img);
+    img.onload = () => {
+      if (!cancelled) setResult({ src, image: img, failed: false });
+    };
+    img.onerror = () => {
+      if (!cancelled) setResult({ src, image: null, failed: true });
+    };
     img.src = src;
     return () => {
+      cancelled = true;
       img.onload = null;
+      img.onerror = null;
     };
   }, [src]);
 
-  return image;
+  if (result.src !== src) return { image: null, failed: false };
+  return { image: result.image, failed: result.failed };
 }
 
 const STAGE_MAX_WIDTH = 900;
@@ -103,7 +120,7 @@ interface AnnotationCanvasProps {
 }
 
 export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
-  const htmlImage = useHtmlImage(image.url);
+  const { image: htmlImage, failed: imageFailed } = useHtmlImage(image.url);
   const shapes = useAnnotationStore(
     (state) => state.shapesByImage[image.id] ?? EMPTY_SHAPES,
   );
@@ -458,8 +475,17 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
             className="absolute inset-0 flex items-center justify-center gap-2 bg-muted/40 text-sm text-muted-foreground"
             style={{ width: stageWidth + 24, height: stageHeight + 24 }}
           >
-            <Spinner />
-            Loading image...
+            {imageFailed ? (
+              <>
+                <ImageOffIcon className="size-4" />
+                Failed to load this image
+              </>
+            ) : (
+              <>
+                <Spinner />
+                Loading image...
+              </>
+            )}
           </div>
         )}
         <Stage

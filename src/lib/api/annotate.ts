@@ -12,7 +12,7 @@ export async function uploadImage(file: File) {
   const { data } = await apiClient.post<ImageAsset>(
     "/annotate/images/",
     formData,
-    { headers: { "Content-Type": "multipart/form-data" } }
+    { headers: { "Content-Type": "multipart/form-data" } },
   );
   return data;
 }
@@ -27,7 +27,11 @@ export async function fetchShapes(imageId: string) {
 export async function saveShapes(imageId: string, shapes: Shape[]) {
   const { data } = await apiClient.put<Shape[]>(
     `/annotate/images/${imageId}/shapes/`,
-    { shapes }
+    { shapes },
   );
   return data;
+}
+
+export async function deleteImage(imageId: string) {
+  await apiClient.delete(`/annotate/images/${imageId}/`);
 }
