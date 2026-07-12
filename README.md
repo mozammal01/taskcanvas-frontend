@@ -7,6 +7,12 @@ talks to a separate [TaskCanvas backend](https://github.com/mozammal01/taskcanva
 over HTTP. That backend intentionally uses Express + PostgreSQL instead of
 the assignment's suggested Django — see its README for why.
 
+## Live deployment
+
+- Frontend: https://taskcanvas-frontend.vercel.app
+- Backend: https://taskcanvas-backend.vercel.app
+- Demo login: `demo@taskcanvas.dev` / `Demo1234!`
+
 ## Tech stack
 
 - **Next.js 16** (App Router) + **TypeScript**, `src/` directory
