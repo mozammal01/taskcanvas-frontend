@@ -201,12 +201,23 @@ export function AnnotationCanvas({ image }: AnnotationCanvasProps) {
 
   const handleStageDblClick = () => {
     if (!isDrawMode) return;
-    // Konva's own click/dblclick disambiguation forwards exactly one extra
-    // "click" for the double-click gesture's first click before "dblclick"
-    // fires (verified empirically — unlike raw DOM semantics, which fire
-    // two), so handleStageClick already appended one redundant point at the
-    // closing location. Drop it before closing the shape.
-    const finalPoints = draftPoints.slice(0, -1);
+    // Konva's click/dblclick disambiguation forwards one or more extra
+    // "click" events for the double-click gesture itself (engine-dependent)
+    // before "dblclick" fires, each landing at ~the same spot since the two
+    // physical clicks of a double-click don't move the mouse. Collapse only
+    // those genuine near-duplicates rather than unconditionally dropping the
+    // last point - that forwarded click is often the user's real 3rd vertex
+    // (e.g. click, click, double-click to close a triangle), and dropping it
+    // regardless silently left the shape one point short of closing.
+    const finalPoints = [...draftPoints];
+    while (finalPoints.length >= 2) {
+      const a = finalPoints[finalPoints.length - 1];
+      const b = finalPoints[finalPoints.length - 2];
+      const closeInScreenSpace =
+        Math.abs((a.x - b.x) * scale) < 4 && Math.abs((a.y - b.y) * scale) < 4;
+      if (!closeInScreenSpace) break;
+      finalPoints.pop();
+    }
     if (finalPoints.length >= 3) {
       addShape(finalPoints);
     }
